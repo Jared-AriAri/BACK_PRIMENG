@@ -4,7 +4,7 @@ const cors = require('@fastify/cors');
 
 const supabase = createClient(
     "https://ikhaimvtmtclvdddhvtf.supabase.co",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlraGFpbXZ0bXRjbHZkZGRodnRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0NzkyMDEsImV4cCI6MjA5MDA1NTIwMX0.H4LUExQeLNuzpI4T9twZq7fG4XXBQOh03QjTSJOoxbw"
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlraGFpbXZ0bXRjbHZkZGRodnRmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDQ3OTIwMSwiZXhwIjoyMDkwMDU1MjAxfQ.ScDanw0Obr7mre9TwZgLNM6smHOlwmgVL73P0Dd9VFw"
 );
 
 fastify.register(cors, { origin: "*" });
@@ -13,21 +13,19 @@ fastify.get('/mine/:userId', async (request, reply) => {
     const { userId } = request.params;
     const { data, error } = await supabase
         .from('grupo_miembros')
-        .select(`
-            grupos (id, nombre, descripcion, creador_id, creado_en)
-        `)
+        .select('grupos(*)')
         .eq('usuario_id', userId);
 
-    if (error) return reply.status(400).send(error);
+    if (error) {
+        console.error("Supabase Error:", error);
+        return reply.status(400).send({ error: error.message });
+    }
     const groups = data.map(item => item.grupos).filter(g => !!g);
     return { data: groups };
 });
 
 fastify.get('/', async (request, reply) => {
-    const { data, error } = await supabase
-        .from('grupos')
-        .select('*')
-        .order('creado_en', { ascending: false });
+    const { data, error } = await supabase.from('grupos').select('*').order('creado_en', { ascending: false });
     return error ? reply.status(400).send(error) : { data };
 });
 
@@ -58,15 +56,9 @@ fastify.get('/:id/members', async (request, reply) => {
     const { id } = request.params;
     const { data, error } = await supabase
         .from("grupo_miembros")
-        .select(`
-          usuario_id,
-          fecha_unido,
-          usuarios (id, nombre_completo, email, username)
-        `)
+        .select(`usuario_id, fecha_unido, usuarios (id, nombre_completo, email, username)`)
         .eq("grupo_id", id);
-
     if (error) return reply.status(400).send(error);
-
     const members = data.map(m => ({
         usuario_id: m.usuario_id,
         fecha_unido: m.fecha_unido,
@@ -74,7 +66,6 @@ fastify.get('/:id/members', async (request, reply) => {
         email: m.usuarios?.email,
         username: m.usuarios?.username
     }));
-
     return { data: members };
 });
 
@@ -85,7 +76,7 @@ fastify.post('/:id/members', async (request, reply) => {
         .from("grupo_miembros")
         .insert([{ grupo_id: id, usuario_id: usuarioId }])
         .select();
-    return error ? reply.status(400).send(error) : { data };
+    return error ? reply.status(400).send(error) : { data: data[0] };
 });
 
 fastify.delete('/:id/members/:usuarioId', async (request, reply) => {
